@@ -91,7 +91,6 @@ Alat ini menyediakan antarmuka web untuk menjalankan perintah, mengelola file, m
 **SERPENTECHUNTER v2.1** dikembangkan oleh **SerpentSecHunter** dan didistribusikan untuk keperluan **edukasi dan pengujian keamanan**.
 
 - **Penulis Kode**: SerpentSecHunter
-- **Kontributor**: ZAMZZZ (perbaikan dan penyesuaian)
 - **Lisensi**: **Gunakan dengan risiko sendiri**. Tidak ada jaminan, baik tersurat maupun tersirat. Pengguna bertanggung jawab penuh atas konsekuensi penggunaan.
 - **Dilarang** menggunakan alat ini untuk aktivitas ilegal.
 
