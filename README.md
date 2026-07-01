@@ -2,7 +2,7 @@
 
 **Developer**   : SerpentSecHunter  
 **Rilis**       : 02-07-2026  
-**Versi**       : 1.0  
+**Versi**       : 2.1  
 **Bahasa**      : VBScript (ASP)
 
 ---
